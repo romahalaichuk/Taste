@@ -1,41 +1,366 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="pl">
 	<head>
 		<meta charset="UTF-8" />
 		<meta name="viewport" content="width=device-width, initial-scale=1.0" />
-		<title>Wizit</title>
+		<title>Firmy i Usługi</title>
+
+		<title>Firmy i Usługi</title>
+
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/pdfmake.min.js"></script>
+		<script src="https://cdnjs.cloudflare.com/ajax/libs/pdfmake/0.2.7/vfs_fonts.js"></script>
+
 		<style>
 			body {
-				background-color: rgb(60, 116, 96);
-
-				margin-right: 0px;
-				margin-top: 0px;
-				margin-left: 0px;
+				font-family: Arial;
+				background: #f2f2f2;
+				margin: 0;
+				padding: 20px;
+			}
+			h2 {
+				margin-top: 0;
+			}
+			.container {
+				max-width: 1100px;
+				margin: auto;
+			}
+			.flex {
+				display: flex;
+				gap: 20px;
+			}
+			.box {
+				background: white;
+				padding: 15px;
+				border-radius: 8px;
+				box-shadow: 0 0 5px rgba(0, 0, 0, 0.1);
+			}
+			button {
+				padding: 8px 12px;
+				cursor: pointer;
+				margin-top: 5px;
+			}
+			input,
+			select {
+				padding: 6px;
+				width: 100%;
+				margin-bottom: 5px;
+			}
+			.company-card {
+				border: 1px solid #ccc;
+				padding: 10px;
+				margin: 5px;
+				cursor: pointer;
+				text-align: center;
+			}
+			.company-card:hover {
+				background: #eee;
+			}
+			.hidden {
+				display: none;
+			}
+			table {
+				width: 100%;
+				border-collapse: collapse;
+			}
+			table,
+			th,
+			td {
+				border: 1px solid #ccc;
+			}
+			th,
+			td {
+				padding: 6px;
+				text-align: center;
 			}
 		</style>
 	</head>
+
 	<body>
-		<div style="position: relative; display: inline-block">
-			<img
-				src="1460x616.jfif"
-				width="1600px"
-				alt="Opis obrazka"
-				style="display: block" />
-			<span
-				style="
-					position: absolute;
-					top: 90%;
-					left: 87%;
-					transform: translate(-50%, -50%);
-					color: white;
-					padding: 10px 20px;
-					border-radius: 5px;
-					font-size: 100px;
-					width: 100%;
-					font-family: Helvetica, sans-serif;
-				">
-				Sebastian Skarżyński
-			</span>
+		<div class="container">
+			<h2>📁 Firmy</h2>
+
+			<div class="box">
+				<input id="cname" placeholder="Nazwa firmy" />
+				<input id="caddress" placeholder="Adres" />
+				<input id="cnip" placeholder="NIP" />
+				<button onclick="addCompany()">➕ Dodaj firmę</button>
+			</div>
+
+			<div id="companies" class="flex"></div>
+
+			<div id="companyPanel" class="box hidden">
+				<h2 id="companyTitle"></h2>
+
+				<h3>🧾 Dodaj sprzedaż</h3>
+				<input type="date" id="saleDate" />
+				<select id="saleService"></select>
+				<button onclick="addSale()">Zapisz sprzedaż</button>
+
+				<h3>📊 Sprzedaż</h3>
+				<table>
+					<thead>
+						<tr>
+							<th>Data</th>
+							<th>Usługa</th>
+							<th>Netto</th>
+							<th>VAT</th>
+							<th>Brutto</th>
+							<th></th>
+						</tr>
+					</thead>
+					<tbody id="salesTable"></tbody>
+				</table>
+
+				<button onclick="printPDF()">📄 Drukuj PDF</button>
+				<button onclick="clearSales()">🗑 Wyczyść dane sprzedaży</button>
+
+				<hr />
+
+				<h3>🛠 Usługi (cennik)</h3>
+
+				<input id="serviceName" placeholder="Nazwa usługi" />
+				<input id="serviceNet" placeholder="Netto" type="number" />
+				<input id="serviceVat" placeholder="VAT %" type="number" />
+				<input id="serviceGross" placeholder="Brutto" disabled />
+
+				<button onclick="addService()">➕ Dodaj usługę</button>
+
+				<ul id="serviceList"></ul>
+			</div>
 		</div>
+
+		<script>
+			let data = JSON.parse(localStorage.getItem("firms")) || [];
+			let current = null;
+
+			function save() {
+				localStorage.setItem("firms", JSON.stringify(data));
+			}
+
+			/* ===== FIRMY ===== */
+
+			function renderCompanies() {
+				companies.innerHTML = "";
+				data.forEach((c, i) => {
+					let d = document.createElement("div");
+					d.className = "company-card";
+					d.innerHTML = `<b>${c.name}</b><br>${c.nip}`;
+					d.onclick = () => openCompany(i);
+					companies.appendChild(d);
+				});
+			}
+
+			function addCompany() {
+				data.push({
+					name: cname.value,
+					address: caddress.value,
+					nip: cnip.value,
+					services: [],
+					sales: [],
+				});
+				save();
+				renderCompanies();
+				cname.value = caddress.value = cnip.value = "";
+			}
+
+			function openCompany(i) {
+				current = i;
+				companyPanel.classList.remove("hidden");
+				companyTitle.innerText = data[i].name;
+				renderServices();
+				renderSales();
+			}
+
+			/* ===== USŁUGI (CENNIK) ===== */
+
+			serviceNet.oninput = serviceVat.oninput = () => {
+				let n = parseFloat(serviceNet.value) || 0;
+				let v = parseFloat(serviceVat.value) || 0;
+				serviceGross.value = (n + (n * v) / 100).toFixed(2);
+			};
+
+			function addService() {
+				data[current].services.push({
+					name: serviceName.value,
+					net: parseFloat(serviceNet.value),
+					vat: parseFloat(serviceVat.value),
+					gross: parseFloat(serviceGross.value),
+				});
+
+				serviceName.value = "";
+				serviceNet.value = "";
+				serviceVat.value = "";
+				serviceGross.value = "";
+
+				save();
+				renderServices();
+			}
+
+			function renderServices() {
+				saleService.innerHTML = "";
+				serviceList.innerHTML = "";
+
+				data[current].services.forEach((s, i) => {
+					saleService.innerHTML += `
+			<option value="${i}">
+				${s.name} (${s.gross} zł)
+			</option>`;
+
+					serviceList.innerHTML += `
+			<li>
+				${s.name} | Netto: ${s.net} | VAT: ${s.vat}% | Brutto: ${s.gross}
+				<button onclick="delService(${i})">❌</button>
+			</li>`;
+				});
+			}
+
+			function delService(i) {
+				data[current].services.splice(i, 1);
+				save();
+				renderServices();
+			}
+
+			/* ===== SPRZEDAŻ ===== */
+
+			function addSale() {
+				let s = data[current].services[saleService.value];
+
+				data[current].sales.push({
+					date: saleDate.value,
+					service: s.name,
+					net: s.net,
+					vat: s.vat,
+					brutto: s.gross,
+				});
+
+				save();
+				renderSales();
+			}
+
+			function renderSales() {
+				salesTable.innerHTML = "";
+				data[current].sales.forEach((s, i) => {
+					salesTable.innerHTML += `
+			<tr>
+				<td>${s.date}</td>
+				<td>${s.service}</td>
+				<td>${s.net}</td>
+				<td>${s.vat}%</td>
+				<td>${s.brutto.toFixed(2)}</td>
+				<td><button onclick="delSale(${i})">❌</button></td>
+			</tr>`;
+				});
+			}
+
+			function delSale(i) {
+				data[current].sales.splice(i, 1);
+				save();
+				renderSales();
+			}
+
+			function clearSales() {
+				if (confirm("Na pewno usunąć całą sprzedaż tej firmy?")) {
+					data[current].sales = [];
+					save();
+					renderSales();
+				}
+			}
+
+			function printPDF() {
+				let company = data[current];
+
+				// ===== DANE DO TABELI =====
+				let body = [
+					[
+						{ text: "Lp.", bold: true },
+						{ text: "Data sprzedaży", bold: true },
+						{ text: "Nazwa usługi", bold: true },
+						{ text: "Wartość netto", bold: true },
+						{ text: "Podatek VAT", bold: true },
+						{ text: "Wartość brutto", bold: true },
+					],
+				];
+
+				let sumaNetto = 0;
+				let sumaVat = 0;
+				let sumaBrutto = 0;
+
+				company.sales.forEach((s, i) => {
+					let vatKwota = (s.net * s.vat) / 100;
+
+					body.push([
+						i + 1,
+						s.date,
+						s.service,
+						s.net.toFixed(2),
+						vatKwota.toFixed(2),
+						s.brutto.toFixed(2),
+					]);
+
+					sumaNetto += s.net;
+					sumaVat += vatKwota;
+					sumaBrutto += s.brutto;
+				});
+
+				// ===== RAZEM =====
+				body.push([
+					{ text: "RAZEM", colSpan: 3, bold: true },
+					{},
+					{},
+					{ text: sumaNetto.toFixed(2), bold: true },
+					{ text: sumaVat.toFixed(2), bold: true },
+					{ text: sumaBrutto.toFixed(2), bold: true },
+				]);
+
+				// ===== PDF =====
+				let docDefinition = {
+					content: [
+						{ text: company.name, fontSize: 11 },
+						{ text: company.address, fontSize: 11 },
+						{
+							text: "NIP: " + company.nip,
+							fontSize: 11,
+							margin: [0, 0, 0, 15],
+						},
+
+						{
+							text: "EWIDENCJA SPRZEDAŻY NIEDOKUMENTOWANEJ FAKTURAMI",
+							bold: true,
+							alignment: "center",
+							margin: [0, 10, 0, 5],
+						},
+						{
+							text:
+								"ZA " +
+								new Date()
+									.toLocaleDateString("pl-PL", {
+										month: "long",
+										year: "numeric",
+									})
+									.toUpperCase(),
+							alignment: "center",
+							margin: [0, 0, 0, 15],
+						},
+
+						{
+							table: {
+								headerRows: 1,
+								widths: ["auto", "auto", "*", "auto", "auto", "auto"],
+								body: body,
+							},
+						},
+					],
+					defaultStyle: {
+						fontSize: 10,
+					},
+				};
+
+				pdfMake
+					.createPdf(docDefinition)
+					.download(new Date().toISOString().slice(0, 10) + "_ewidencja.pdf");
+			}
+
+			renderCompanies();
+		</script>
 	</body>
 </html>
