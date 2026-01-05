@@ -117,15 +117,24 @@
 				<hr />
 
 				<h3>🛠 Usługi (cennik)</h3>
+				<button class="btn" onclick="toggleCennik()">Pokaż cennik</button>
 
-				<input id="serviceName" placeholder="Nazwa usługi" />
-				<input id="serviceNet" placeholder="Netto" type="number" />
-				<input id="serviceVat" placeholder="VAT %" type="number" />
-				<input id="serviceGross" placeholder="Brutto" disabled />
-
-				<button onclick="addService()">➕ Dodaj usługę</button>
-
-				<ul id="serviceList"></ul>
+				<div id="cennikContainer" style="display: none; margin-top: 10px">
+					<input id="serviceName" placeholder="Nazwa usługi" />
+					<input id="serviceNet" placeholder="Netto" type="number" />
+					<input id="serviceVat" placeholder="VAT %" type="number" />
+					<input id="serviceGross" placeholder="Brutto" disabled />
+					<button onclick="addService()">➕ Dodaj usługę</button>
+					<ul id="serviceList"></ul>
+				</div>
+				<div style="text-align: right; margin-top: 20px">
+					<button
+						class="btn"
+						onclick="deleteFirm()"
+						style="background: #dc3545">
+						🗑 Usuń firmę
+					</button>
+				</div>
 			</div>
 		</div>
 
@@ -136,9 +145,19 @@
 			function save() {
 				localStorage.setItem("firms", JSON.stringify(data));
 			}
+			function deleteFirm() {
+				if (!confirm("Na pewno usunąć całą firmę wraz z usługami i sprzedażą?"))
+					return;
 
+				data.splice(current, 1); // usuń firmę
+				localStorage.setItem("firms", JSON.stringify(data));
+				location.reload(); // 🔥 odśwież stronę
+			}
 			/* ===== FIRMY ===== */
-
+			function toggleCennik() {
+				const box = document.getElementById("cennikContainer");
+				box.style.display = box.style.display === "none" ? "block" : "none";
+			}
 			function renderCompanies() {
 				companies.innerHTML = "";
 				data.forEach((c, i) => {
@@ -212,6 +231,7 @@
 				<button onclick="delService(${i})">❌</button>
 			</li>`;
 				});
+				saleService.selectedIndex = 0;
 			}
 
 			function delService(i) {
@@ -235,6 +255,10 @@
 
 				save();
 				renderSales();
+
+				// wyczyść formularz sprzedaży
+				document.getElementById("saleDate").value = "";
+				document.getElementById("saleService").selectedIndex = 0;
 			}
 
 			function renderSales() {
